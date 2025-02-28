@@ -40,7 +40,7 @@ checkDir()
 
 # Need to store config when training
 class Config:
-    # Loading info
+    # Loading chunk data of size 10000
     start_ses = 0
     load_batch_size = DataSplit.chunk_size
     not_improve_cnt = 0
@@ -50,7 +50,8 @@ class Config:
     epochs = 20
     epoch_tmp = 0
     lr = 0.001
-    train_batch_size = 64
+    num_worker = multiprocessing.cpu_count()
+    train_batch_size = 32
     embed_size = 10
     vocab_size = itemsMAXID()
     scheduler_step = 2
@@ -105,13 +106,13 @@ class EMBTrain(Config):
         X = list(itertools.chain(*X))
         y = list(itertools.chain(*y))
         traindata = EMBDataset(X, y)
-        trainloader = DataLoader(traindata, batch_size=Config.train_batch_size, shuffle=True, num_workers=4)
+        trainloader = DataLoader(traindata, batch_size=Config.train_batch_size, shuffle=True, num_workers=Config.num_worker)
         
         X, y = zip(*results[split_idx:])
         X = list(itertools.chain(*X))
         y = list(itertools.chain(*y))
         testdata = EMBDataset(X, y)
-        testloader = DataLoader(testdata, batch_size=Config.train_batch_size, shuffle=True, num_workers=4)
+        testloader = DataLoader(testdata, batch_size=Config.train_batch_size, shuffle=True, num_workers=Config.num_worker)
         return trainloader, testloader
 
     def nearData(self) -> tuple:        
@@ -204,7 +205,6 @@ class EMBTrain(Config):
             return None
         print("Create trainer")
         return EMBTrain(chunk_id)
-
 
 for c in range(DataSplit.chunk_num):
     trainer = EMBTrain.createInstance(c)

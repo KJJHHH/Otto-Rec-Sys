@@ -20,8 +20,27 @@ type_enum = {
 }
     
 # Data info
+def getDataInfo():
+    num_sessions = numSessions()
+    max_item_id = itemsMAXID()
+    chunk_size = 10000
+    return {
+        "num_sessions": num_sessions,
+        "max_item_id": max_item_id,
+        "chunk_size": chunk_size
+    }
+
+def storeDataInfo(data_info):
+    with open(Files.data_info, "w") as f:
+        f.write(json.dumps(data_info))
+
+def loadDataInfo():
+    with open(Files.data_info, "r") as f:
+        data_info = json.loads(f.read())
+    return data_info
+
 def itemsMAXID() -> int:
-    filename = Files.max_itemid
+    filename = Files.data_info
     if os.path.exists(filename):
         with open(filename, "r") as f:
             return json.loads(f.read())["max_item_id"]
@@ -57,18 +76,23 @@ def getSessions(trainfile) -> set:
 def numSessions() -> int:
     trainfile = Files.train
     sum = 0
-    with open(trainfile, "r", encoding="utf-8") as file:
-        for line in file:
-            sum += 1
-    return sum
+    if os.path.exists(Files.data_info):
+        with open(Files.data_info, "r") as f:
+            return json.loads(f.read())["num_sessions"]
+    else:
+        with open(trainfile, "r", encoding="utf-8") as file:
+            for line in file:
+                sum += 1
+        return sum
 
-def checkDir():
-    if not os.path.exists(Files.tmp):
-        print(f"Dir not exist: {Files.tmp}")
-        os.makedirs(Files.tmp)
-    if not os.path.exists(Files.model_dir):
-        print(f"Dir not exist: {Files.model_dir}")
-        os.makedirs(Files.model_dir)
+def checkDir(type = "train"):
+    directories = [Files.data_chunks_dir, Files.tmp, Files.model_dir]
+    if type == "data":
+        directories = [Files.data_chunks_dir]
+    for directory in directories:
+        if not os.path.exists(directory):
+            print(f"Dir not exist: {directory}")
+            os.makedirs(directory)
 
 # Load config: load train info
 def storeConfig(config):

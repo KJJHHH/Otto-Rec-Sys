@@ -20,10 +20,18 @@ warnings.filterwarnings("ignore")
 
 from utils import *
 
+checkDir("data")
+
 # Datas information
 class DataSplit():
-    chunk_size = 10000
-    chunk_num = numSessions() // chunk_size + 1
+    if not os.path.exists(Files.data_info):
+        data_info = getDataInfo()
+        storeDataInfo(data_info)
+    data_info = loadDataInfo()
+    chunk_size = data_info["chunk_size"]
+    max_item_id = data_info["max_item_id"]
+    num_sessions = data_info["num_sessions"]
+    chunk_num = num_sessions // chunk_size + 1
     
     def __init__(self):
         pass
