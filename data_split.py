@@ -22,15 +22,15 @@ from utils import *
 
 # Datas information
 class DataSplit():
-    chunk_size = loadConfig()["batch_size"]
+    chunk_size = 10000
     chunk_num = numSessions() // chunk_size + 1
     
     def __init__(self):
         pass
         
     def checkPath(self):
-        if not os.path.exists(Files.data_chunks):
-            os.makedirs(Files.data_chunks)
+        if not os.path.exists(Files.data_chunks_dir):
+            os.makedirs(Files.data_chunks_dir)
     
     def storeDataChunks(self):
 
@@ -42,7 +42,7 @@ class DataSplit():
     
     def store(self, chunk_id, test = False):
         # load line chunks
-        batch_filename = f"{Files.data_chunks}{chunk_id}.json"
+        batch_filename = f"{Files.data_chunks_dir}{chunk_id}.json"
         
         with open(Files.train, "r", encoding="utf-8") as lf:
             with open(batch_filename, "w", encoding="utf-8") as sf:
