@@ -25,6 +25,7 @@ checkDir("data")
 # Datas information
 class DataSplit():
     if not os.path.exists(Files.data_info):
+        print(f"Data info file not exist: create {Files.data_info}")
         data_info = getDataInfo()
         storeDataInfo(data_info)
     data_info = loadDataInfo()
