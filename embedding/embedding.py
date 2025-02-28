@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore")
 # Import local file
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from files_name import Files
-INCLUDE_ATTRS = {"train", "data_chunks_dir", "data_info "}
+INCLUDE_ATTRS = {"train", "data_info", "data_chunks_dir"}
 for attr in dir(Files):
     if not attr.startswith("__") and attr in INCLUDE_ATTRS:
         value = getattr(Files, attr) 
