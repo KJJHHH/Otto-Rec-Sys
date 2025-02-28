@@ -40,7 +40,6 @@ checkDir()
 
 # Need to store config when training
 class Config:
-    # Loading chunk data of size 10000
     start_ses = 0
     load_batch_size = DataSplit.chunk_size
     not_improve_cnt = 0
@@ -50,7 +49,6 @@ class Config:
     epochs = 20
     epoch_tmp = 0
     lr = 0.001
-    num_worker = multiprocessing.cpu_count()
     train_batch_size = 32
     embed_size = 10
     vocab_size = itemsMAXID()
@@ -59,6 +57,7 @@ class Config:
     
     # Train test
     train_rate = .8
+
 
 class EMBDataset(Dataset, Config):
     def __init__(self, data, target):
@@ -70,8 +69,7 @@ class EMBDataset(Dataset, Config):
         return len(self.data)
 
     def __getitem__(self, idx):
-        y = padToTensor(self.target[idx], self.vocab_size)
-        return torch.tensor(self.data[idx]), y
+        return torch.tensor(self.data[idx]), padToTensor(self.target[idx], self.vocab_size)
 
 class EMBTrain(Config):
     def __init__(self, chunk_id):
@@ -106,13 +104,13 @@ class EMBTrain(Config):
         X = list(itertools.chain(*X))
         y = list(itertools.chain(*y))
         traindata = EMBDataset(X, y)
-        trainloader = DataLoader(traindata, batch_size=Config.train_batch_size, shuffle=True, num_workers=Config.num_worker)
+        trainloader = DataLoader(traindata, batch_size=Config.train_batch_size, shuffle=True, num_workers=4, persistent_workers=True)
         
         X, y = zip(*results[split_idx:])
         X = list(itertools.chain(*X))
         y = list(itertools.chain(*y))
         testdata = EMBDataset(X, y)
-        testloader = DataLoader(testdata, batch_size=Config.train_batch_size, shuffle=True, num_workers=Config.num_worker)
+        testloader = DataLoader(testdata, batch_size=Config.train_batch_size, shuffle=True, num_workers=4, persistent_workers=True)
         return trainloader, testloader
 
     def nearData(self) -> tuple:        
@@ -210,42 +208,3 @@ for c in range(DataSplit.chunk_num):
     trainer = EMBTrain.createInstance(c)
     trainer.train()
     break
-    
-"""    print("trianing...")
-    not_improve_cnt = 0
-    for epoch in range(epochs):
-        total_loss = 0.
-        best = float("inf")
-        for ses_off, (x, y) in tqdm(enumerate(trainloader), leave=False):
-            x, y = x.to(device), y.to(device)
-            optimizer.zero_grad()
-            embedded = model(x)
-            loss = torch.mean(torch.diagonal(embedded@y.T))
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-            
-        scheduler.step()
-        train_config["lr"] = getLr(optimizer)
-        storeTrainingConfig(train_config)
-        if getLr(optimizer) < 0.000001:
-            print("Training finished")
-            break        
-        
-        total_loss_mean = total_loss / ses_off
-        if total_loss_mean < best:
-            best = total_loss_mean
-            not_improve_cnt = 0
-            torch.save(model.state_dict(), Files.embedding_model)
-            
-        else:
-            not_improve_cnt += 1
-            if not_improve_cnt >= 5:
-                print("Training finished")
-                break
-        
-        print(f"Epoch: {epoch} Session {start_ses + ses_off*train_batch_size} | Loss: {total_loss_mean}")
-    
-    
-    break
-"""
