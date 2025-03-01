@@ -9,7 +9,6 @@ import torch
 import warnings
 warnings.filterwarnings("ignore")
 
-from files_name import Files
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -19,93 +18,30 @@ type_enum = {
     "orders": 2
 }
     
-# Data info
-def getDataInfo():
-    num_sessions = numSessions()
-    max_item_id = itemsMAXID()
-    chunk_size = 10000
-    return {
-        "num_sessions": num_sessions,
-        "max_item_id": max_item_id,
-        "chunk_size": chunk_size
-    }
-
-def storeDataInfo(data_info):
-    with open(Files.data_info, "w") as f:
-        f.write(json.dumps(data_info))
-
-def loadDataInfo():
-    with open(Files.data_info, "r") as f:
-        data_info = json.loads(f.read())
-    return data_info
-
-def itemsMAXID() -> int:
-    filename = Files.data_info
-    if os.path.exists(filename):
-        with open(filename, "r") as f:
-            return json.loads(f.read())["max_item_id"]
-    else:
-        items = getItems()
-        with open(filename, "w") as f:
-            f.write(json.dumps({"max_item_id": max(items) + 1}))
-        return max(items) + 1
-
-def getItems() -> set:
-    filename = Files.train
-    items = set()
-    with open(filename, "r", encoding="utf-8") as file:
-        for line in tqdm(file): 
-            session = json.loads(line)  
-            for ev in session["events"]:
-                items.add(ev["aid"])
-    
-    return items
-
-def getSessions(trainfile) -> set:
-    sessions = set()
-    with open(trainfile, "r", encoding="utf-8") as file:
-        for id, line in tqdm(enumerate(file)):
-            try:
-                data = json.loads(line)  # Convert JSON string to dictionary
-                sessions.add(data["session"])
-            except: 
-                print("bad lines")
-                continue
-    return sessions
-
-def numSessions() -> int:
-    trainfile = Files.train
-    sum = 0
-    if os.path.exists(Files.data_info):
-        with open(Files.data_info, "r") as f:
-            return json.loads(f.read())["num_sessions"]
-    else:
-        with open(trainfile, "r", encoding="utf-8") as file:
-            for line in file:
-                sum += 1
-        return sum
-
-def checkDir(type = "train"):
-    directories = [Files.data_chunks_dir, Files.tmp, Files.model_dir]
-    if type == "data":
-        directories = [Files.data_chunks_dir]
+def checkDir(directories:list):
     for directory in directories:
         if not os.path.exists(directory):
             print(f"Dir not exist: {directory}")
             os.makedirs(directory)
 
-# Load config: load train info
-def storeConfig(config):
-    with open(Files.config, "wb") as f:
-        pickle.dump(config, f)
+# Load config: load train status
+def storeConfig(filename, tmp_config):
+    with open(filename, "w") as f:
+        json.dump(tmp_config, f)
+    
+def loadConfig(filename):
+    print("Load previous training status")
+    with open(filename, "r") as f:
+        tmp_config = json.load(f)
+    return tmp_config
 
-def loadModel(model):
-    checkpoint_files = [f for f in os.listdir(Files.model_dir)]
+def loadModel(model, model_dir):
+    checkpoint_files = [f for f in os.listdir(model_dir)]
 
     checkpoint_numbers = [int(f.split('-')[-1].split('.pt')[0]) for f in checkpoint_files]
     if checkpoint_files != []:
         latest_ckpt = f"ckpt-best-session-{max(checkpoint_numbers)}.pt"
-        checkpoint_path = os.path.join(Files.model_dir, latest_ckpt)
+        checkpoint_path = os.path.join(model_dir, latest_ckpt)
         model.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage, weights_only=True))
         print(f"Loaded checkpoint: {latest_ckpt}")
         
@@ -226,44 +162,3 @@ def computeLoss(out, target, stat: list):
     reward -= torch.sum(out[not_indices]) / not_indices.numel()
     
     return - reward
-
-
-
-"""
-def loadConfig() -> dict:
-    file = Files
-    if os.path.exists(file):
-        with open(file, 'r') as f:
-            return json.load(f)
-    else:
-        return {
-            "start_ses": 0,
-            "batch_size": 10000,
-            "not_improve_cnt": 0}
-
-def storeLoadConfig(info: dict):
-    file = Files.load_info
-    with open(file, 'w') as f:
-        json.dump(info, f)
-        
-def trainingConfig() -> dict:    
-    file = Files.training_config
-    if os.path.exists(file):
-        with open(file, 'r') as f:
-            return json.load(f)
-    else:
-        return {
-            "epochs": 20, 
-            "lr": 0.001, 
-            "batch_size": 128, 
-            "embed_size": 20, 
-            "vocab_size": itemsMAXID(), 
-            "scheduler_step": 10, 
-            "scheduler_gamma": 0.5}
-    
-def storeTrainingConfig(config: dict):
-    file = Files.training_config
-    with open(file, 'w') as f:
-        json.dump(config, f)
-    
-"""
