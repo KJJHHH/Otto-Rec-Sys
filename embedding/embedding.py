@@ -36,7 +36,7 @@ class Files:
     # local files (for each algorithm)
     tmp_dir = "tmp/"
     model_dir = "checkpoints/"
-    config = "tmp/config.pickle"
+    config = "tmp/config.json"
 
 checkDir([Files.data_chunks_dir, Files.tmp_dir, Files.model_dir])
 
@@ -52,7 +52,7 @@ class Config:
     
     # Training info
     load_batch_size = DataSplit.chunk_size
-    epochs = 1
+    epochs = 2
     train_batch_size = 64
     embed_size = 10
     vocab_size = itemsMAXID()
@@ -80,26 +80,22 @@ class EMBTrain(Config):
         - Train dataset
         """
         if os.path.exists(Files.config):
-            tmp_config = loadConfig()
+            tmp_config = loadConfig(Files.config)
             # Restore train status
-            for attr in dir(tmp_config):
-                if not attr.startswith("__"):
-                    setattr(self, attr, getattr(tmp_config, attr))        
-            # Initialize for each chunk train
-            if self.epoch_tmp == 0:
-                self.lr = Config.lr
-                self.not_improve_cnt = 0
-                self.eval_best_loss = float("inf")
+            print(f"Load previous training status: {tmp_config}")
+            for attr in dir(self):
+                if not attr.startswith("__") and attr in tmp_config.keys():
+                    setattr(self, attr, tmp_config[attr])    
                     
         # Initialze training data
-        print(f"Start session: {(self.chunk_id+1) * self.load_batch_size}")
+        print(f"Start chunk: {self.chunk_id+1}")
         self.trainset = DataSplit.loadChunkData(Files.data_chunks_dir + str(chunk_id) + ".json")
         self.trainloader, self.testloader = self.loader()
         
         # Initialize model
         print(f"Model embed size: {self.embed_size}, vocab_size: {self.vocab_size}")
         self.model = EMBModel(self.vocab_size, self.embed_size).to(device)
-        self.model = loadModel(self.model)
+        self.model = loadModel(self.model, Files.model_dir)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = StepLR(self.optimizer, step_size=self.scheduler_step, gamma=self.scheduler_gamma)  
         
@@ -134,30 +130,26 @@ class EMBTrain(Config):
             if epoch < self.epoch_tmp:
                 continue
             
-            total_loss = 0.
             self.model.train()
-            for ses_off, (x, y) in enumerate(tqdm(self.trainloader, leave=False)):
+            for x, y in tqdm(self.trainloader, leave=False):
                 x, y = x.to(device), y.to(device)
                 self.optimizer.zero_grad()
                 embedded = self.model(x)
                 loss = - torch.mean(torch.diagonal(embedded@y.T))
                 loss.backward()
                 self.optimizer.step()
-                total_loss += loss.item()
-                if ses_off > 10:
-                    break
+                break
             
             self.scheduler.step()
             self.lr = getLr(self.optimizer)
-            if getLr(self.optimizer) < 0.0000000001:
+            if self.lr < 0.0000000001:
                 print("Lr too small")
                 break        
             
-            loss_eval = total_loss / ses_off
             self.epoch_tmp = epoch + 1
             
             # Evaluate and save model
-            # loss_eval = self.evaluate()       
+            loss_eval = self.evaluate()       
             if loss_eval < self.eval_best_loss:
                 torch.save(self.model.state_dict(), Files.model_dir + f"ckpt-best-session-{c}.pt")
                 self.eval_best_loss = loss_eval
@@ -169,10 +161,7 @@ class EMBTrain(Config):
                     os.remove(Files.config)
                     break
             
-            # If train 5 epoch but stop, this chunk regard as trained data chunk
-            if epoch == 5:
-                self.chunk_id += 1
-                
+            # Update epoch for the training chunk
             self.epoch_tmp = epoch
             
             # Store train status
@@ -183,25 +172,42 @@ class EMBTrain(Config):
                 "eval_best_loss": self.eval_best_loss, 
                 "lr": self.lr
                 }
-            storeConfig(tmp_config)
+            storeConfig(Files.config, tmp_config)
                         
-            print(f"Epoch: {epoch} Session {self.chunk_id + ses_off*self.train_batch_size} | Loss: {loss_eval}")
+            print(f"Epoch: {epoch} | Loss: {loss_eval}")
+        
+        # Reset training status when finish training
+        self.chunk_id += 1
+        self.epoch_tmp = 0
+        self.lr = Config.lr
+        self.not_improve_cnt = 0
+        self.eval_best_loss = float("inf")
+        tmp_config["chunk_id"] = self.chunk_id
+        tmp_config["epoch_tmp"] = self.epoch_tmp
+        tmp_config["lr"] = self.lr
+        tmp_config["not_improve_cnt"] = self.not_improve_cnt
+        tmp_config["eval_best_loss"] = self.eval_best_loss
+        storeConfig(Files.config, tmp_config)
         
         print("Training chunk finished")
+        
+        torch.cuda.empty_cache()
     
     def evaluate(self):
         print("Evaluating...")
         loss = 0.
         self.model.eval()
         with torch.no_grad():
-            for ses_off, (x, y) in enumerate(tqdm(self.trainloader, leave=False)):
+            total_loss = 0
+            for x, y in tqdm(self.testloader, leave=False):
                 x, y = x.to(device), y.to(device)
                 self.optimizer.zero_grad()
                 embedded = self.model(x)
                 loss = - torch.mean(torch.diagonal(embedded@y.T))
-                loss += loss.item()
+                total_loss += loss.item()
+                break
             
-        return loss
+        return total_loss / len(self.testloader)
     
     @staticmethod
     def taskGetNeighbor(session: list, context_window: int = 60*60*24*1000) -> None:
@@ -217,7 +223,7 @@ class EMBTrain(Config):
     def createInstance(chunk_id):
         # Update config
         if os.path.exists(Files.config):
-            tmp_config = loadConfig()
+            tmp_config = loadConfig(Files.config)
             # Check condition
             if chunk_id <= tmp_config["chunk_id"]:
                 return None
@@ -227,14 +233,10 @@ class EMBTrain(Config):
 
 for c in range(DataSplit.chunk_num):
     trainer = EMBTrain.createInstance(c)
-    """
-    for attr in dir(trainer):
-        if not attr.startswith("__") and attr in dir(Config):
-            print(f"{attr}: {getattr(trainer, attr)}")
-    """
-    # trainer = EMBTrain.createInstance(c)
     if trainer is not None:
        trainer.train()
+    else:
+        print(f"Already trained this chunk {c}!")
     # break
 
 
