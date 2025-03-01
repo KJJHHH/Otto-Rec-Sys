@@ -42,6 +42,17 @@ checkDir([Files.data_chunks_dir, Files.tmp_dir, Files.model_dir])
 
 # Need to store config when training
 class Config:
+    """Config that will change when training:
+    
+    tmp_config = {
+        "chunk_id": self.chunk_id, 
+        "epoch_tmp": self.epoch_tmp, 
+        "not_improve_cnt": self.not_improve_cnt, 
+        "eval_best_loss": self.eval_best_loss, 
+        "lr": self.lr
+        }
+    """
+    
     # Store while training
     chunk_id = -1
     
